@@ -1,0 +1,239 @@
+COMP-3/4722 — FSS Project
+Stage 1: Findings Memo
+================================================================================
+
+Finding ID: F-01
+Title: Credentials transmitted in plaintext over the network
+Violated requirement(s): R1, R12
+Severity: Critical
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F01.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Enter username "alice" and password "password123".
+
+Evidence:
+The MITM shell prints the captured username and password in plaintext immediately
+upon login (e.g., "[F-01 CAPTURED] username='alice'  password='password123'").
+No decryption is required. The credentials are visible to any party positioned
+between the client and server.
+
+================================================================================
+
+Finding ID: F-02
+Title: Upload file content replaced in transit by MITM
+Violated requirement(s): R5
+Severity: High
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F02.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Select Upload file. Enter filename "notes.txt" and content "hello world".
+6. Select Download file. Enter filename "notes.txt".
+
+Evidence:
+The content shown in step 6 reads "*** THIS FILE HAS BEEN TAMPERED WITH BY THE
+MITM ***" rather than "hello world". The MITM shell prints the original and
+replacement content. The server accepted the tampered content with no indication
+of modification. The client received no warning.
+
+================================================================================
+
+Finding ID: F-03
+Title: Session token stolen and used to access victim files
+Violated requirement(s): R1, R8
+Severity: Critical
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F03.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Select Upload file. Upload any file (e.g., "secret.txt" with content "private").
+
+Evidence:
+Immediately after step 4, the MITM shell prints the stolen token and then prints
+the output of a LIST and DOWNLOAD request made directly to the server using that
+token (e.g., "[F-03 EXPLOIT] DOWNLOAD 'secret.txt': content='private'"). The
+attacker accesses alice's files without alice's knowledge or participation.
+
+================================================================================
+
+Finding ID: F-04
+Title: Captured UPLOAD request replayed causing second unintended write
+Violated requirement(s): R4, R8
+Severity: High
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F04.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Select Upload file. Upload "notes.txt" with content "original content".
+6. Wait 5 seconds. Then select List files.
+
+Evidence:
+The LIST response in step 6 shows a modification timestamp for "notes.txt" that
+is approximately 3 seconds later than the timestamp returned in the upload
+confirmation in step 5. The MITM shell prints "[F-04 REPLAY] Server accepted
+replay", confirming a second write occurred without any user action.
+
+================================================================================
+
+Finding ID: F-05
+Title: Server download response replaced with attacker-controlled content
+Violated requirement(s): R6
+Severity: High
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F05.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Upload "real.txt" with content "genuine file content".
+6. Select Download file. Enter filename "real.txt".
+
+Evidence:
+The content displayed to the client in step 6 reads "INJECTED BY MITM - this is
+not the real file content". The MITM shell confirms the substitution. The client
+accepted the injected response without any error or integrity check.
+
+================================================================================
+
+Finding ID: F-06
+Title: Path traversal via filename tampering writes outside user directory
+Violated requirement(s): R7
+Severity: High
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F06.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Select Upload file. Enter any filename (e.g., "myfile.txt") and any content.
+
+Evidence:
+After step 5, inspect the server filesystem. The file "injected_by_mitm.txt"
+appears in server_storage/bob/ rather than server_storage/alice/. The MITM shell
+prints the original and replaced filenames. The server accepted the traversal path
+without error, demonstrating that no path sanitization is performed.
+
+================================================================================
+
+Finding ID: F-07
+Title: Session token replaced with attacker-known fixed value
+Violated requirement(s): R8, R12
+Severity: High
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F07.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Select List files.
+
+Evidence:
+The MITM shell prints the real server-issued token and the fixed replacement token
+"aaaa-bbbb-cccc-dddd-eeee-ffff-0000". The client successfully lists files in step 5,
+confirming it is operating with the attacker-chosen token. The server has no mechanism
+to detect the substitution. The attacker now knows the exact token in use.
+
+================================================================================
+
+Finding ID: F-08
+Title: Server response suppressed causing client to hang indefinitely
+Violated requirement(s): R2, R10
+Severity: Medium
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F08.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+5. Select Upload file. Enter filename "hang.txt" and content "test".
+
+Evidence:
+After step 5 the client hangs waiting for a response that never arrives. The MITM
+shell prints "[F-08 DROP] Server UPLOAD response suppressed." The server processed
+the upload successfully but the client cannot confirm it and cannot proceed. No
+timeout or recovery mechanism exists in the client.
+
+================================================================================
+
+Finding ID: F-09
+Title: No rate limiting allows password brute force
+Violated requirement(s): R10
+Severity: High
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 supplement_F09.py in the MITM shell (no modified mitm.py required;
+   this script connects directly to the server).
+
+Evidence:
+The script iterates through a wordlist and prints each attempt. When the correct
+password is tried, the output reads "[F-09 SUCCESS] password='password123'
+token=<uuid>". The server accepts every attempt with no delay, lockout, or
+error escalation. The entire wordlist is exhausted in under one second.
+
+================================================================================
+
+Finding ID: F-10
+Title: Malformed input injection causes server to drop the connection
+Violated requirement(s): R9
+Severity: Medium
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F10.py in the MITM shell.
+3. Run python3 client.py in the client shell.
+4. Select Login. Log in as alice.
+
+Evidence:
+Shortly after step 4 the MITM injects a malformed byte sequence. The server raises
+an unhandled exception and closes the TCP connection. The client shell displays a
+connection error or hangs. The MITM shell prints "[F-10] Server closed connection
+after malformed input". The server does not return an error response; it simply
+drops the session, violating the expectation of graceful error handling.
+
+================================================================================
+
+Finding ID: F-11
+Title: Token swap causes server to serve another user's files
+Violated requirement(s): R1, R7
+Severity: Critical
+
+Attack steps:
+1. Run python3 server.py in the server shell.
+2. Run python3 mitm_F11.py in the MITM shell.
+3. Open two client shells. In the first, run python3 client.py and log in as alice.
+   Upload a file "alice_secret.txt" with content "alice private data".
+4. In the second client shell, run python3 client.py and log in as bob.
+5. In bob's client, select Download file. Enter filename "alice_secret.txt".
+
+Evidence:
+Bob's client displays the content "alice private data" from alice's directory.
+The MITM shell prints "[F-11 SWAP] DOWNLOAD token swapped: 'bob' -> 'alice'",
+confirming that bob's download token was replaced with alice's. Bob receives
+alice's file without possessing alice's credentials or token.
+
+================================================================================
+
+Finding ID: F-12
+Title: Passwords stored in plaintext in users.json
+Violated requirement(s): R1, R12
+Severity: Critical
+
+Attack steps:
+1. Run python3 supplement_F12.py in the server shell (server.py need not be running).
+
+Evidence:
+The script prints a table of all usernames and passwords in cleartext, read directly
+from users.json (e.g., "alice  password123"). No hashing, salting, or encryption
+is applied to the stored credentials. Any party with filesystem access — including
+a compromised server process or backup — can recover all user passwords immediately.
+
+================================================================================
