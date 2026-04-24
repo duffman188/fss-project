@@ -161,6 +161,18 @@ All client-server traffic passes through the MITM node, making it trivial to obs
 
 ---
 
+
+## Stage 2A Transition
+
+This stage introduces a secure application-layer protocol that mitigates
+all vulnerabilities identified in Stage 1. See `stage2A_overview.pdf`
+for the full cryptographic design and security improvements.
+
+
+
+
+
+
 ## Notes
 
 - Do not use `python3 -m tls` or any TLS wrapper — the project requires application-layer security implementation (Stage 2).
